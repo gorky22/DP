@@ -79,13 +79,9 @@ class KeypointEncoder(nn.Module):
         nn.init.constant_(self.encoder[-1].bias, 0.0)
 
     def forward(self, kpts, scores):
-        
-        #inputs = [kpts.transpose(1, 2), scores]
 
-        
-        inputs = [kpts.transpose(1, 2), scores.unsqueeze(1)]
+        inputs = [kpts.transpose(1, 2),  scores.unsqueeze(1).squeeze(-1)]
         return self.encoder(torch.cat(inputs, dim=1))
-
 
 def attention(query, key, value):
     dim = query.shape[1]
@@ -200,14 +196,17 @@ class SuperGlue(nn.Module):
     Networks. In CVPR, 2020. https://arxiv.org/abs/1911.11763
 
     """
+
+
     default_config = {
         'descriptor_dim': 5,
         'weights': 'indoor',
-        'keypoint_encoder': [5, 64, 128],
+        'keypoint_encoder': [32, 64, 128, 256],
         'GNN_layers': ['self', 'cross'] * 9,
         'sinkhorn_iterations': 100,
         'match_threshold': 0.2,
     }
+
 
     def __init__(self, config):
         super().__init__()
@@ -238,14 +237,23 @@ class SuperGlue(nn.Module):
         desc0, desc1 = data['descriptors0'].double(), data['descriptors1'].double()
         kpts0, kpts1 = data['keypoints0'].double(), data['keypoints1'].double()
 
-        desc0 = desc0.transpose(0,1)
-        desc1 = desc1.transpose(0,1)
+        n = desc0.shape[0]
+      
+        #desc0 = desc0.transpose(1,2)
+        #desc1 = desc1.transpose(1,2)
+        
+        
 
-        desc0 = desc0.T.reshape(desc0.shape[1],desc0.shape[0])
-        desc1 = desc1.T.reshape(desc1.shape[1],desc1.shape[0])
-        kpts0 = torch.reshape(kpts0, (1, -1, 2))
-        kpts1 = torch.reshape(kpts1, (1, -1, 2))
+        #desc0 = desc0.T.reshape(desc0.shape[1],desc0.shape[0])
+        #desc1 = desc1.T.reshape(desc1.shape[1],desc1.shape[0])
+
+        kpts0 = torch.reshape(kpts0, (n, -1, 2))
+        kpts1 = torch.reshape(kpts1, (n, -1, 2))
+
+        
     
+        #kpts0 = kpts0.reshape(32,15,2) 
+        #kpts1 = kpts1.reshape(32,15,2) 
         if kpts0.shape[1] == 0 or kpts1.shape[1] == 0:  # no keypoints
             shape0, shape1 = kpts0.shape[:-1], kpts1.shape[:-1]
             return {
@@ -258,17 +266,17 @@ class SuperGlue(nn.Module):
 
         #file_name = data['file_name']
         #all_matches = data['all_matches'].permute(1,2,0) # shape=torch.Size([1, 87, 2])
-        all_matches = data['all_matches'].permute(1,2,0)
+        all_matches = data['all_matches']
         # Keypoint normalization.
         #kpts0 = normalize_keypoints(kpts0, data['image0'].shape)
         #kpts1 = normalize_keypoints(kpts1, data['image1'].shape)
         kpts0 = normalize_keypoints(kpts0, [0,0,360,90])
         kpts1 = normalize_keypoints(kpts1, [0,0,360,90])
-
-        # Keypoint MLP encoder.
-        desc0 = desc0.reshape(desc0.shape[1], desc0.shape[0]) + self.kenc(kpts0, torch.transpose(data['scores0'], 0, 1))
         
-        desc1 = desc1.reshape(desc1.shape[1], desc1.shape[0]) + self.kenc(kpts1, torch.transpose(data['scores1'], 0, 1))
+        # Keypoint MLP encoder
+        desc0 = desc0 + self.kenc(kpts0, data['scores0'].double())
+        desc1 = desc1 + self.kenc(kpts1,  data['scores1'].double())
+        #print(desc0)
 
         # Multi-layer Transformer network.
         desc0, desc1 = self.gnn(desc0, desc1)
@@ -299,24 +307,38 @@ class SuperGlue(nn.Module):
         indices1 = torch.where(valid1, indices1, indices1.new_tensor(-1))
 
         # check if indexed correctly
-        loss = []
-        for i in range(len(all_matches)):
-            x = all_matches[i][0]
-            y = all_matches[i][1]
-            loss.append(-torch.log( scores[0][x][0][y].exp() )) # check batch size == 1 ?
-        # for p0 in unmatched0:
-        #     loss += -torch.log(scores[0][p0][-1])
-        # for p1 in unmatched1:
-        #     loss += -torch.log(scores[0][-1][p1])
-        loss_mean = torch.mean(torch.stack(loss))
-        loss_mean = torch.reshape(loss_mean, (1, -1))
+        batch_loss = 0
+        acc = 0
+
+        for batch_idx in range(0, scores.shape[0]):  # Loop through each item in the batch 
+            loss = []
+
+            matches, conf = indices0[batch_idx].cpu().detach().numpy(), mscores0[batch_idx].cpu().detach().numpy()
+            for i in range(0,15):
+                if matches[i] == i:
+                    acc += 1
+
+            for i, match in enumerate(all_matches[batch_idx]):
+                x = all_matches[batch_idx][i][0]
+                #print( scores[batch_idx][int(x)][int(x)].exp())
+                loss.append(-torch.log( scores[batch_idx][int(x)][int(x)].exp() )) # check batch size == 1 ?
+
+            loss_mean = torch.mean(torch.stack(loss))
+            loss_mean = torch.reshape(loss_mean, (1, -1))
+
+            batch_loss += loss_mean[0]
+
+        avg_acc = acc/n/15
+
         return {
-            'matches0': indices0[0], # use -1 for invalid match
-            'matches1': indices1[0], # use -1 for invalid match
+            'matches0': indices0[0],  # use -1 for invalid match
+            'matches1': indices1[0],  # use -1 for invalid match
             'matching_scores0': mscores0[0],
             'matching_scores1': mscores1[0],
-            'loss': loss_mean[0],
-            'skip_train': False
+            'loss': batch_loss/n,  # Updated to use the tensor of mean loss
+            'skip_train': False,
+            'acc': avg_acc  # Assuming avg_acc is calculated correctly elsewhere
         }
 
-        # scores big value or small value means confidence? log can't take neg value
+     
+

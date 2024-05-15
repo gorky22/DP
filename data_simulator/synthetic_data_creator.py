@@ -19,11 +19,7 @@ from astropy.coordinates import SkyCoord, AltAz, EarthLocation
 from astropy.time import Time
 from data_simulator.fragment_simulator import Fragment
 from tqdm import tqdm
-##https://mae.ufl.edu/~uhk/GAUSSIAN-NEW.pdf
-#https://fmph.uniba.sk/fileadmin/fmfi/microsites/kafzm/daa/Metory/AMOS_technical.jpg
-#https://stackoverflow.com/questions/50125574/calculate-image-size-of-an-object-from-real-size
-# focal length of modular automatic system fisheye lens CANON/SIGMA Image intensigfier MULARD XX1332 image lens of shade of amplifier meopta video oprication 1.4/16 digital camera sourcing DMK41BU02F/CCD cameras with large chips
-## 16mm
+
 class DataGenerator():
     """
     This class is designed to generate data for simulating the observation of atmospheric objects, such as meteors or space debris, as they pass through the Earth's atmosphere. It uses a variety of parameters to simulate different scenarios for observation by ground-based stations.
@@ -46,26 +42,11 @@ class DataGenerator():
     - debris_size: Size of the space debris.
     - mass, drag_coef, surface_area, lift_coef: Physical properties of the reentry object.
     """
-    # Static attributes
+
     station2_coord_lon_lat = {'lon': -156.256146, 'lat': 20.707403, 'h': 3068}
     station1_coord_lon_lat = {'lon': -155.477173, 'lat': 19.823662, 'h': 4126}
-    descriptors = {...}  # As previously defined
     start_obst_time = '2019-10-15 07:38:22.800'
     amos_time_interval = 0.05
-    object_in_atmosphere_range_speed = [12, 40]
-
-    # Added range attributes
-    angle = (-10, 10)  # Example range, adjust as needed
-    altitude_range = (80000, 120000)  # Example range in meters
-    velocity = (5000, 10000)  # Example range in m/s
-
-    # Other attributes
-    num_of_frames = None
-    pixel_size = None
-    focal_length = None
-    debris_size = None
-    num_of_fragments = None
-    range_of_fragment_spread = None
 
     def __init__(self, num_sets,range_of_fragment_spread, angle, velocity, debris_size, camera_fps, focal_length, pixel_size, num_of_frames, station1_coord_lon_lat=None, station2_coord_ra_dec=None, start_obst_time=None, mass=12, drag_coef=1.5, surface_area=0.3, lift_coef=1.0,num_of_fragments=1):
         """
@@ -89,6 +70,7 @@ class DataGenerator():
         :param lift_coef: Lift coefficient.
         """
 
+
         self.num_sets = num_sets
         self.mass = mass
         self.drag_coef = drag_coef
@@ -98,14 +80,14 @@ class DataGenerator():
         self.velocity = velocity
         self.range_of_fragment_spread = range_of_fragment_spread
 
-               
+
         self.debris_size = debris_size
         self.dt = camera_fps
         self.num_of_frames = num_of_frames
         self.focal_length = focal_length
         self.pixel_size = pixel_size
         self.num_of_fragments = num_of_fragments
-        
+
 
         if station1_coord_lon_lat:
             self.station1_coord_lon_lat = station1_coord_lon_lat
@@ -129,43 +111,39 @@ class DataGenerator():
 
         :return: New timestamp.
         """
-     
-        # Add 0.05 seconds
+
         new_time = original_time + timedelta(seconds=to_add)
 
- 
         return new_time
-    
+
 
     def get_staton_eloc(self, lon, lat, height):
         '''
         _get_staton_eloc function takes coordinates of station (camera) and returns Earthlocation object (astropy)
-        :param lon: longtitude  
+        :param lon: longtitude
         :param lat: latitude
         :param height: height (in meters)
         :return: returns Earthlocation object
         '''
 
-        
-        return EarthLocation(lon=lon*au.deg, lat=lat*au.deg, height=height*au.m) 
+        return EarthLocation(lon=lon*au.deg, lat=lat*au.deg, height=height*au.m)
 
     def generate_point(self, camera1, random_distance=None, dir_vector=None):
         """
         Generate a random direction vector.
-
+        :param camera1:list: reference camera location
+        :param random_distance:int: distance from reference camera
+        :param dir_vector:list: direction vector from reference camera to fragment
         :return: Random direction vector.
         """
 
-        # Choose one of the cameras as the reference camera
-        reference_camera = camera1  # You can choose camera1 or camera2
-        
+        reference_camera = camera1
+
         was_none = False
 
-        
-      
         # Calculate the vector from the reference camera to the other camera
         if dir_vector is None:
-            
+
             dir_vector = [random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(0.9,1)]
             dir_vector = np.array(dir_vector)
             norm = np.linalg.norm(dir_vector)
@@ -176,23 +154,26 @@ class DataGenerator():
             was_none = True
             random_distance = random.uniform(80, 110)
 
-    
         # Calculate the coordinates of the random point
-        
-        point = (reference_camera[0] + random_distance * dir_vector[0], 
-                        reference_camera[1] + random_distance * dir_vector[1], 
+        point = (reference_camera[0] + random_distance * dir_vector[0],
+                        reference_camera[1] + random_distance * dir_vector[1],
                         reference_camera[2] + random_distance * dir_vector[2])
-        
+
         if was_none:
             return list(point), random_distance, dir_vector
         else:
             return list(point)
-        
-    
-    
-    def generate_direction_vector(self):
 
-        #only z coordination is -1 because object should falling down not upper
+
+
+    def generate_direction_vector(self):
+        """
+        Generate ranfom normalised direction vector
+
+        :return: A list of 3 floats representing the new vector.
+        """
+
+    
         return  [random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 0)]
 
 
@@ -205,29 +186,27 @@ class DataGenerator():
         :return: A tuple of 3 floats representing the new 3D point.
         """
 
-        # Convert distance from km to the same unit as the start_point (assuming meters)
         distance = random.uniform(self.range_of_fragment_spread[0], self.range_of_fragment_spread[1] )  # 0.01 - 0.5 km in meters
 
-        # Create a random unit vector for direction
         random_direction = np.random.randn(3)  # random vector
         random_direction /= np.linalg.norm(random_direction)  # normalize to unit vector
-
-        # Calculate new point
-        #new_point = np.array(start_point) + distance * random_direction
-
-        #print(distance * random_direction)
 
         return distance * random_direction
 
 
 
     def generate_cloud_of_fragments(self):
+        """
+        Generates all fragments (simulate explosion of debris)
+
+        :return: list of fragemnts instances
+        """
 
         cloud_of_fragments = []
         print(f"                    starting generating fragments")
         print('--------------------------------------------------------------------------')
         for i in range(0, self.num_of_fragments):
-            
+
 
             fragment_point = self.create_point_with_direction()
             angle = random.uniform(self.angle[0], self.angle[1]) if isinstance(self.angle, list) else self.angle
@@ -248,21 +227,19 @@ class DataGenerator():
             print(f"Surface Area: {surface_area}")
             print(f"Lift Coefficient: {lift_coef}")
             print('')
-
             cloud_of_fragments.append(Fragment(id_=i,location_of_fragment=fragment_point, angle=angle,
-                                       debris_size=debris_size, initial_altitude=None,
+                                       debris_size=debris_size, initial_altitude=100000,
                                        initial_velocity=initial_velocity, camera_fps=self.amos_time_interval,
                                        focal_length=self.focal_length, pixel_size=self.pixel_size, num_of_frames=self.num_of_frames,
-                                       station1_coord_lon_lat=None, station2_coord_ra_dec=None,
-                                       start_obst_time=None, mass=mass, drag_coef=drag_coef,
+                                       mass=mass, drag_coef=drag_coef,
                                        surface_area=surface_area, lift_coef=lift_coef))
-            
+
         return cloud_of_fragments
-    
+
     def altitude_from_geocentric(self, X, Y, Z):
                 """
                 Calculate the altitude from geocentric coordinates.
-                
+
                 :param X: Geocentric X coordinate in kilometers.
                 :param Y: Geocentric Y coordinate in kilometers.
                 :param Z: Geocentric Z coordinate in kilometers.
@@ -287,12 +264,12 @@ class DataGenerator():
         alt = []
         down = []
 
-        
-
         for i in range(0, self.num_sets):
-            
+            print('*'*50)
+            print(f'{i}')
+            print('*'*50)
             cloud_of_fragments = []
-        
+
             if len(cloud_of_fragments) > 0:
                 for fragment in cloud_of_fragments:
                     del fragment
@@ -307,37 +284,38 @@ class DataGenerator():
             camera2_coord = self.get_staton_eloc(self.station2_coord_lon_lat['lon'],self.station2_coord_lon_lat['lat'], self.station2_coord_lon_lat['h'])
 
             obst_times = Time(obst_times_, format="datetime")
-      
+
             station1GCRSVectorArr = SkyCoord(camera1_coord.get_gcrs(obstime=obst_times),
                                    frame="gcrs").cartesian / au.m
-            
+
             station2GCRSVectorArr = SkyCoord(camera2_coord.get_gcrs(obstime=obst_times),
                                    frame="gcrs").cartesian / au.m
-            
+
             station1GCRSVectorArr = [[x.x /1000, x.y/1000, x.z/1000] for x in station1GCRSVectorArr]
             station2GCRSVectorArr = [[x.x/1000, x.y/1000, x.z/1000]  for x in station2GCRSVectorArr]
-            
+
             start_point, random_distance, _ = self.generate_point(station1GCRSVectorArr[0], dir_vector=None)
 
-            
+
             # get sample point with altitude as real debris is cetected
-            
-            
+
+
             while self.altitude_from_geocentric(start_point[0], start_point[1], start_point[2]) < 80 or self.altitude_from_geocentric(start_point[0], start_point[1], start_point[2]) > 120:
                 start_point, random_distance, dir_vector = self.generate_point(station1GCRSVectorArr[0])
 
 
             cloud_of_fragments = self.generate_cloud_of_fragments()
-            
+
             was_removed = None
+
             print('\n---------------------------- Generating fragments --------------------------------------\n')
             for i in tqdm(range(0, self.num_of_frames)):
                 new_centre_point = self.generate_point(station1GCRSVectorArr[i], random_distance=random_distance, dir_vector=dir_vector)
-                
-                
+
+
                 was_removed = None
                 for j in range(0, self.num_of_fragments):
-                    
+
                     try:
                         cloud_of_fragments[j].get_fragmet_data(new_centre_point, i, station1GCRSVectorArr[i],station2GCRSVectorArr[i], dir_vector)
                     except ValueError:
@@ -347,7 +325,12 @@ class DataGenerator():
 
                 if was_removed is not None:
                     del cloud_of_fragments[j]
-                    self.num_of_fragments -= 1
+                    break
+
+            if was_removed is not None:
+                    for fragment in cloud_of_fragments:
+                      del fragment
+                    continue
 
             tmp = {'keypoints0': [], 'scores0':[], 'descriptors0':[[],[],[],[],[],[]],'keypoints1':[], 'scores1':[], 'descriptors1':[[],[],[],[],[],[]], 'fno':[],'id_':[],'carthesian': []}
 
@@ -356,7 +339,7 @@ class DataGenerator():
 
                 for key in ress.keys():
                     if key == 'descriptors0' or key == 'descriptors1':
-                        for j in range(0, len(ress[key])): 
+                        for j in range(0, len(ress[key])):
 
                             tmp[key][j].extend(ress[key][j])
                     else:

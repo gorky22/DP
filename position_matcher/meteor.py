@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
-import xmltodict as xtd
+from position_matcher import xmltodict as xtd
 from astropy.coordinates import *
 import astropy.units as u
 from astropy.time import Time
@@ -12,8 +12,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 import plotly.io as pio
-
-
 
 class Meteor:
   """
@@ -196,7 +194,7 @@ class Meteor:
       dir2 = coord2 - site2
 
       
-      def get_distance(self, one,two) :
+      def get_distance(one,two) :
 
         [x1,y1,z1] = one # first coordinates
         [x2,y2,z2] = two # second coordinates
@@ -224,12 +222,12 @@ class Meteor:
           # p1, p2 are points on the lines
           # d1, d2 are direction vectors of the lines
           # returns the intersection point of the two lines
-          print(p1,d1,p2,d2)
+        
           n1 = np.cross(d1, d2)
           n2 = np.cross(d1, n1)
           t = np.dot(n2, p2 - p1) / np.dot(n2, d1)
           intersection_point =  p1 + t * d1
-          print(intersection_point)
+        
           return [[intersection_point[0],intersection_point[1], intersection_point[2]], 0]
           
 
@@ -248,12 +246,10 @@ class Meteor:
         # Calculate the coordinates of the point where the two lines are closest
         c2 = p2 + np.dot((p1 - p2), n1) / np.dot(d2, n1) * d2
 
-        print('pointss')
-        print(c1,c2)
 
         midpoint = (c1 + c2) / 2
         
-        dst = get_distance(self, c1,c2)
+        dst = get_distance(c1,c2)
 
         return midpoint, dst
 
@@ -261,7 +257,6 @@ class Meteor:
       # Calculate the closest points on the two lines
       midpoint, dst = closest_points_between_two_lines(site1, dir1, site2, dir2)
       
-      print(midpoint)
       return [[midpoint[0], midpoint[1], midpoint[2]], dst]
 
     
