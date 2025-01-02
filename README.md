@@ -1,6 +1,6 @@
 ## Overview
 
-This project is Diploma Thesis for matching debris fragments detected on AMOS camera systems.
+This project is Diploma Thesis for matching debris fragments detected on AMOS camera systems (https://opac.crzp.sk/?fn=detailBiblioFormChildEGLP&sid=AA0D9432EF6DE826C913184F11D3&seo=CRZP-detail-kniha).
 
 ## Setup and Installation
 
